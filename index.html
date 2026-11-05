@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Arena</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root {
+            --bg-dark: #121212;
+            --panel-bg: #1e1e1e;
+            --accent-green: #00e676;
+            --accent-light-green: #69f0ae;
+            --dark-green: #1b5e20;
+            --money-green: #2e7d32;
+            --pine-green: #013220;
+            --dark-gray: #2a2a2a;
+            --text-white: #ffffff;
+            --text-gray: #aaaaaa;
+            --danger-red: #ff5252;
+            --purple-rare: #b388ff;
+            --gold-legendary: linear-gradient(45deg, #ffd700, #ff8c00);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: var(--text-white);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* LIVE TAPE */
+        .live-tape {
+            background-color: #181818;
+            border-bottom: 1px solid var(--dark-green);
+            padding: 6px 12px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 36px;
+            overflow: hidden;
+        }
+
+        .live-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            animation: fadeIn 0.5s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .badge-common { color: var(--text-gray); font-weight: bold; }
+        .badge-rare { color: var(--purple-rare); font-weight: bold; text-shadow: 0 0 5px rgba(179,136,255,0.4); }
+        .badge-legendary {
+            background: var(--gold-legendary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-weight: 900;
+            text-shadow: 0 0 8px rgba(255,215,0,0.6);
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .tab-content {
+            display: none;
+            height: 100%;
+            flex-direction: column;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        /* History Line */
+        .history-line {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            justify-content: center;
+        }
+
+        .history-badge {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--dark-gray);
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            color: var(--accent-light-green);
+        }
+
+        /* Crash Display */
+        .crash-display {
+            background: radial-gradient(circle at center, #1e261f 0%, #121212 100%);
+            border: 1px solid var(--dark-green);
+            border-radius: 16px;
+            height: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+
+        .bee-container {
+            position: absolute;
+            left: 20px;
+            bottom: 30px;
+            width: 85px;
+            height: 85px;
+            transition: transform 0.1s linear, bottom 1.5s ease-in-out, opacity 1.5s ease-in-out;
+        }
+
+        .bee-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        .bee-container.falling {
+            bottom: -100px !important;
+            opacity: 0;
+        }
+
+        .multiplier {
+            font-size: 46px;
+            font-weight: 900;
+            color: var(--accent-green);
+            margin-left: 50px;
+            text-shadow: 0 0 15px rgba(0,230,118,0.3);
+        }
+
+        .multiplier.crashed {
+            color: var(--danger-red);
+            text-shadow: 0 0 15px rgba(255,82,82,0.3);
+        }
+
+        .countdown {
+            font-size: 64px;
+            font-weight: 900;
+            color: var(--text-white);
+        }
+
+        /* Bet Controls */
+        .bet-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .bet-input {
+            flex: 1;
+            background-color: var(--panel-bg);
+            border: 1px solid var(--dark-green);
+            border-radius: 10px;
+            color: #fff;
+            padding: 12px;
+            font-size: 16px;
+            outline: none;
+            text-align: center;
+            font-weight: bold;
+        }
+
+        .btn {
+            background-color: var(--money-green);
+            color: #fff;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:disabled {
+            background-color: #333;
+            color: #777;
+        }
+
+        /* Players Table */
+        .players-list {
+            flex: 1;
+            background-color: var(--panel-bg);
+            border-radius: 12px;
+            padding: 10px;
+            overflow-y: auto;
+            border: 1px solid var(--dark-gray);
+        }
+
+        .player-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 10px;
+            border-bottom: 1px solid #282828;
+            font-size: 14px;
+        }
+
+        .player-name {
+            color: var(--text-gray);
+            font-weight: 500;
+            width: 35%;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .player-bet {
+            color: var(--text-white);
+            width: 35%;
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .player-x {
+            color: var(--text-gray);
+            width: 30%;
+            text-align: right;
+            font-weight: bold;
+        }
+
+        .player-row.won .player-name,
+        .player-row.won .player-bet,
+        .player-row.won .player-x {
+            color: var(--accent-green);
+        }
+
+        .player-row.lost .player-name,
+        .player-row.lost .player-bet,
+        .player-row.lost .player-x {
+            color: var(--danger-red);
+        }
+
+        /* Game Selector Card */
+        .game-card {
+            background: linear-gradient(135deg, #1e1e1e 0%, #141414 100%);
+            border: 1px solid var(--dark-green);
+            border-radius: 16px;
+            overflow: hidden;
+            cursor: pointer;
+            position: relative;
+            margin-bottom: 15px;
+        }
+
+        .game-card img {
+            width: 100%;
+            height: 180px;
+            object-fit: cover;
+            display: block;
+        }
+
+        .game-card-title {
+            padding: 12px;
+            text-align: center;
+            font-weight: 900;
+            font-size: 18px;
+            letter-spacing: 1px;
+            background-color: var(--panel-bg);
+            color: var(--text-white);
+        }
+
+        /* Profile Styles */
+        .profile-header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .profile-username {
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--accent-light-green);
+        }
+
+        .profile-id {
+            font-size: 13px;
+            color: var(--text-gray);
+            margin-top: 4px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--dark-green);
+            border-radius: 14px;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-gray);
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: var(--text-white);
+        }
+
+        /* Admin Styles */
+        .admin-box {
+            background-color: var(--panel-bg);
+            border: 1px solid var(--accent-green);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+
+        .admin-box h3 {
+            font-size: 15px;
+            margin-bottom: 10px;
+            color: var(--accent-green);
+        }
+
+        .admin-input {
+            width: 100%;
+            background-color: var(--bg-dark);
+            border: 1px solid var(--dark-green);
+            border-radius: 8px;
+            color: #fff;
+            padding: 8px 10px;
+            font-size: 14px;
+            margin-bottom: 8px;
+            outline: none;
+        }
+
+        .req-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--dark-gray);
+            font-size: 13px;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-approve { background-color: var(--money-green); color: #fff; }
+        .btn-reject { background-color: var(--danger-red); color: #fff; }
+
+        /* Navigation Bar */
+        .nav-bar {
+            display: flex;
+            background-color: var(--panel-bg);
+            border-top: 1px solid var(--dark-gray);
+            height: 60px;
+        }
+
+        .nav-item {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-gray);
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .nav-item.active {
+            color: var(--accent-green);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ЛЕНТА LIVE СВЕРХУ -->
+    <div class="live-tape" id="live-tape">
+        <div class="live-item">
+            <span>LIVE:</span>
+            <span id="live-nick">darkness</span>
+            <span id="live-amount" class="badge-common">100 ₽</span>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <!-- 1. ГЛАВНАЯ -->
+        <div id="tab-main" class="tab-content">
+            <h2 style="margin-bottom: 10px;">Arena</h2>
+            <p style="color: var(--text-gray);">Добро пожаловать в игровой мини-апп Arena!</p>
+        </div>
+
+        <!-- 2. ИГРЫ -->
+        <div id="tab-games" class="tab-content active">
+            <div id="games-selector">
+                <div class="game-card" onclick="openGame('crash')">
+                    <img src="crash_banner.png" alt="Crash">
+                    <div class="game-card-title">CRASH</div>
+                </div>
+            </div>
+
+            <div id="game-crash-screen" style="display: none; flex-direction: column; height: 100%;">
+                <button onclick="closeGame()" style="background: none; border: none; color: var(--accent-green); text-align: left; padding: 5px 0 10px 0; font-weight: bold; cursor: pointer;">← К играм</button>
+                
+                <div class="history-line" id="history-container"></div>
+
+                <div class="crash-display">
+                    <div class="bee-container" id="bee">
+                        <img src="bee.gif" alt="Bee">
+                    </div>
+                    <div id="crash-value" class="multiplier">1.00x</div>
+                </div>
+
+                <div class="bet-controls">
+                    <input type="number" id="bet-amount" class="bet-input" placeholder="Ставка (₽)" value="100">
+                    <button id="action-btn" class="btn">Поставить</button>
+                </div>
+
+                <div class="players-list" id="players-container"></div>
+            </div>
+        </div>
+
+        <!-- 3. БАЛАНС -->
+        <div id="tab-balance" class="tab-content">
+            <h2 style="margin-bottom: 15px;">Баланс</h2>
+            <div style="background-color: var(--panel-bg); padding: 15px; border-radius: 12px; border: 1px solid var(--dark-green); margin-bottom: 15px;">
+                <div style="color: var(--text-gray); font-size: 13px;">Текущий баланс</div>
+                <div style="font-size: 28px; font-weight: bold; color: var(--accent-light-green); margin-top: 5px;"><span id="user-balance">1000</span> ₽</div>
+            </div>
+
+            <div style="background-color: var(--panel-bg); padding: 15px; border-radius: 12px; border: 1px solid var(--dark-gray);">
+                <h3 style="font-size: 16px; margin-bottom: 10px;">Вывод средств</h3>
+                <input type="number" id="withdraw-amount" class="admin-input" placeholder="Сумма вывода (₽)">
+                <button class="btn" style="width: 100%; margin-top: 5px;" onclick="requestWithdraw()">Запросить вывод</button>
+            </div>
+        </div>
+
+        <!-- 4. ПРОФИЛЬ -->
+        <div id="tab-profile" class="tab-content">
+            <div class="profile-header">
+                <div class="profile-username" id="prof-username">@user</div>
+                <div class="profile-id">ID: <span id="prof-id">000000</span></div>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-label">Оборот</div>
+                    <div class="stat-value"><span id="stat-turnover">0</span> ₽</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">% Выиграно</div>
+                    <div class="stat-value"><span id="stat-winrate">0</span>%</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Пополнения</div>
+                    <div class="stat-value"><span id="stat-deposits">0</span> ₽</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Любимая игра</div>
+                    <div class="stat-value" id="stat-fav">Crash</div>
+                </div>
+            </div>
+
+            <!-- АДМИН ПАНЕЛЬ (ТОЛЬКО ДЛЯ @eveeny ID: 84941878) -->
+            <div id="admin-panel" style="display: none;">
+                <h2 style="color: var(--accent-green); margin-bottom: 10px;">Админ Панель</h2>
+                
+                <div class="admin-box">
+                    <h3>Изменить баланс себе</h3>
+                    <input type="number" id="admin-self-bal" class="admin-input" placeholder="Новый баланс">
+                    <button class="btn" style="width: 100%;" onclick="adminSetSelfBalance()">Сохранить себе</button>
+                </div>
+
+                <div class="admin-box">
+                    <h3>Изменить баланс игроку</h3>
+                    <input type="text" id="admin-target-id" class="admin-input" placeholder="ID игрока">
+                    <input type="number" id="admin-target-bal" class="admin-input" placeholder="Новый баланс">
+                    <button class="btn" style="width: 100%;" onclick="adminSetUserBalance()">Изменить игроку</button>
+                </div>
+
+                <div class="admin-box">
+                    <h3>Заявки на вывод</h3>
+                    <div id="admin-requests-list">Нет активных заявок</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Нижнее меню -->
+    <div class="nav-bar">
+        <div class="nav-item" onclick="switchTab('main', this)">Главная</div>
+        <div class="nav-item active" onclick="switchTab('games', this)">Игры</div>
+        <div class="nav-item" onclick="switchTab('balance', this)">Баланс</div>
+        <div class="nav-item" onclick="switchTab('profile', this)">Профиль</div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        let tgUser = tg.initDataUnsafe?.user || { id: 84941878, username: 'eveeny' };
+        let currentUserId = String(tgUser.id);
+
+        let ws;
+        let myBet = 0;
+        let isBetPlaced = false;
+        let fakePlayers = [];
+
+        const NICKNAMES = [
+            'darkness', 'безликий', 'x_ghost', 'NEON', 'tишина', 'nevermind', 'dead_inside', 'кто_я', '404error', 'Shadow',
+            'zloy', 'nothuman', 'xXx', 'пустота', 'your_problem', 'VOLT', 'ne_znayu', 'nowhere', 'ghost_777', 'angel.exe',
+            'KAMIKAZE', 'sleepyhead', 'bezrazlichno', 'rain', 'кто-то', 'justme', 'DARKSIDE', 'sneg', 'no_signal', 'HOLLOW',
+            'случайный', 'not_found', 'vladimir_404', 'hikikomori', 'ECLIPSE', 'privid', 'uglyboy', '0x000', 'zabyt', 'lowlife',
+            'MURDER', 'molchanie', 'noface', 'blyat', 'cold_tea', 'ZABAVA', 'offline', 'человек_икс', 'placebo', '13th',
+            'MrNobody', 'podval', 'lost.soul', 'ne_takoy', 'V0ID', 'zakat', 'coldheart', 'KOT', 'bez_sna', 'unknown_user',
+            'moonlight', 'Sumerki', 'prosto_ya', 'black.exe', 'mirage', 'chelovek', 'lowkey', 'без_имени', 'OVERDOSE', 'nightowl',
+            'privet', 'zero_one', 'stranger', 'ZVER', 'lost_in_space', 'neonline', 'stupidboy', 'tuman', 'im_dead', 'vdrug',
+            'M0ON', 'proxima', 's1lent', 'zxcursed', 'moya_ten', 'somewhere', 'ne_spi', 'AURA', 'tak_slozhno', 'badkarma',
+            '7even', 'kosmos', 'overthinker', 'VETER', 'nobody_knows', 'ne_trogay', 'afterdark', 'k1ller', 'просто_ник', 'UNTITLED'
+        ];
+
+        function initWS() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(`${protocol}//${window.location.host}`);
+
+            ws.onopen = () => {
+                ws.send(JSON.stringify({
+                    type: 'auth',
+                    userId: tgUser.id,
+                    username: tgUser.username ? `@${tgUser.username}` : `User_${tgUser.id}`
+                }));
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.type === 'user_data') {
+                    updateProfileUI(data.user);
+                    if (data.isAdmin) {
+                        document.getElementById('admin-panel').style.display = 'block';
+                        ws.send(JSON.stringify({ type: 'admin_get_data' }));
+                    }
+                }
+
+                if (data.type === 'live_win') {
+                    showLiveWin(data.nick, data.amount);
+                }
+
+                if (data.type === 'state') {
+                    updateHistory(data.history);
+                    if (data.state === 'waiting') {
+                        handleWaitingState(data.countdown);
+                    } else if (data.state === 'playing') {
+                        handlePlayingState(data.multiplier);
+                    } else if (data.state === 'crashed') {
+                        handleCrashedState(data.multiplier);
+                    }
+                }
+
+                if (data.type === 'bet_success') {
+                    document.getElementById('user-balance').innerText = data.balance;
+                    isBetPlaced = true;
+                    myBet = data.betAmount;
+                    actionBtn.innerText = 'Забрать';
+                }
+
+                if (data.type === 'cashout_success') {
+                    document.getElementById('user-balance').innerText = data.balance;
+                    isBetPlaced = false;
+                    myBet = 0;
+                    actionBtn.innerText = 'Поставить';
+                }
+
+                if (data.type === 'withdraw_requested') {
+                    document.getElementById('user-balance').innerText = data.balance;
+                    alert('Заявка на вывод отправлена!');
+                }
+
+                if (data.type === 'admin_data' || data.type === 'admin_requests') {
+                    renderAdminRequests(data.requests);
+                }
+
+                if (data.type === 'admin_success') alert(data.msg);
+                if (data.type === 'admin_error') alert(data.msg);
+            };
+        }
+
+        initWS();
+
+        function switchTab(tabName, el) {
+            document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(e => e.classList.remove('active'));
+            document.getElementById('tab-' + tabName).classList.add('active');
+            el.classList.add('active');
+        }
+
+        function openGame(game) {
+            if (game === 'crash') {
+                document.getElementById('games-selector').style.display = 'none';
+                document.getElementById('game-crash-screen').style.display = 'flex';
+            }
+        }
+
+        function closeGame() {
+            document.getElementById('games-selector').style.display = 'block';
+            document.getElementById('game-crash-screen').style.display = 'none';
+        }
+
+        const crashDisplay = document.getElementById('crash-value');
+        const actionBtn = document.getElementById('action-btn');
+        const playersContainer = document.getElementById('players-container');
+        const bee = document.getElementById('bee');
+
+        function showLiveWin(nick, amount) {
+            const nickEl = document.getElementById('live-nick');
+            const amountEl = document.getElementById('live-amount');
+            nickEl.innerText = nick;
+            
+            let badgeClass = 'badge-common';
+            if (amount >= 1000 && amount < 4000) badgeClass = 'badge-rare';
+            if (amount >= 4000) badgeClass = 'badge-legendary';
+
+            amountEl.className = badgeClass;
+            amountEl.innerText = `${amount} ₽`;
+        }
+
+        function updateHistory(history) {
+            if (!history) return;
+            const container = document.getElementById('history-container');
+            container.innerHTML = '';
+            history.forEach(x => {
+                const b = document.createElement('div');
+                b.className = 'history-badge';
+                b.innerText = x.toFixed(2) + 'x';
+                container.appendChild(b);
+            });
+        }
+
+        function handleWaitingState(cd) {
+            bee.classList.remove('falling');
+            bee.style.bottom = '30px';
+            crashDisplay.className = 'countdown';
+            crashDisplay.innerText = cd;
+            actionBtn.disabled = false;
+            if (!isBetPlaced) actionBtn.innerText = 'Поставить';
+
+            if (cd === 5) {
+                generateFakePlayers();
+                renderPlayers();
+            }
+        }
+
+        function handlePlayingState(mult) {
+            crashDisplay.className = 'multiplier';
+            crashDisplay.innerText = mult.toFixed(2) + 'x';
+
+            if (isBetPlaced) {
+                let win = Math.floor(myBet * mult);
+                actionBtn.innerText = `Забрать ${win} ₽`;
+            }
+
+            updateFakePlayers(mult);
+            renderPlayers(mult);
+        }
+
+        function handleCrashedState(mult) {
+            crashDisplay.className = 'multiplier crashed';
+            crashDisplay.innerText = mult.toFixed(2) + 'x';
+
+            bee.classList.add('falling');
+
+            if (isBetPlaced) {
+                isBetPlaced = false;
+                myBet = 0;
+                actionBtn.innerText = 'Поставить';
+            }
+
+            finishFakePlayers(mult);
+            renderPlayers(mult);
+        }
+
+        actionBtn.onclick = () => {
+            if (!isBetPlaced) {
+                let val = parseInt(document.getElementById('bet-amount').value);
+                if (val > 0) {
+                    ws.send(JSON.stringify({ type: 'place_bet', amount: val }));
+                }
+            } else {
+                ws.send(JSON.stringify({ type: 'cashout', betAmount: myBet }));
+            }
+        };
+
+        function generateFakePlayers() {
+            fakePlayers = [];
+            let count = Math.floor(Math.random() * 4) + 4;
+            for (let i = 0; i < count; i++) {
+                let isHigh = Math.random() < 0.15;
+                let bet = isHigh ? Math.floor(Math.random() * 25 + 10) * 100 : Math.floor(Math.random() * 35 + 1) * 10;
+                let exitX = (Math.random() * 2.5 + 1.1).toFixed(2);
+                fakePlayers.push({
+                    name: NICKNAMES[Math.floor(Math.random() * NICKNAMES.length)],
+                    bet: bet,
+                    exitX: parseFloat(exitX),
+                    status: 'playing',
+                    winAmount: 0
+                });
+            }
+        }
+
+        function updateFakePlayers(currentX) {
+            fakePlayers.forEach(p => {
+                if (p.status === 'playing' && currentX >= p.exitX) {
+                    p.status = 'won';
+                    p.winAmount = Math.floor(p.bet * p.exitX);
+                }
+            });
+        }
+
+        function finishFakePlayers() {
+            fakePlayers.forEach(p => {
+                if (p.status === 'playing') {
+                    p.status = 'lost';
+                }
+            });
+        }
+
+        function renderPlayers(currentX = 1.00) {
+            playersContainer.innerHTML = '';
+
+            if (myBet > 0) {
+                let win = Math.floor(myBet * currentX);
+                let row = document.createElement('div');
+                row.className = 'player-row' + (isBetPlaced ? '' : ' won');
+                row.innerHTML = `
+                    <div class="player-name">Вы (${tgUser.username ? '@'+tgUser.username : 'Вы'})</div>
+                    <div class="player-bet">${isBetPlaced ? win : myBet} ₽</div>
+                    <div class="player-x">${currentX.toFixed(2)}x</div>
+                `;
+                playersContainer.appendChild(row);
+            }
+
+            fakePlayers.forEach(p => {
+                let row = document.createElement('div');
+                let cssClass = 'player-row';
+                let displayBet = p.bet + ' ₽';
+
+                if (p.status === 'won') {
+                    cssClass += ' won';
+                    displayBet = p.winAmount + ' ₽';
+                } else if (p.status === 'lost') {
+                    cssClass += ' lost';
+                } else {
+                    let liveWin = Math.floor(p.bet * currentX);
+                    displayBet = liveWin + ' ₽';
+                }
+
+                row.className = cssClass;
+                row.innerHTML = `
+                    <div class="player-name">${p.name}</div>
+                    <div class="player-bet">${displayBet}</div>
+                    <div class="player-x">${p.status === 'won' ? p.exitX.toFixed(2) : currentX.toFixed(2)}x</div>
+                `;
+                playersContainer.appendChild(row);
+            });
+        }
+
+        function updateProfileUI(u) {
+            document.getElementById('prof-username').innerText = u.username;
+            document.getElementById('prof-id').innerText = u.id;
+            document.getElementById('user-balance').innerText = u.balance;
+            document.getElementById('stat-turnover').innerText = u.turnover;
+            document.getElementById('stat-deposits').innerText = u.deposits;
+            document.getElementById('stat-fav').innerText = u.favoriteGame;
+
+            let rate = u.totalBets > 0 ? Math.floor((u.wins / u.totalBets) * 100) : 0;
+            document.getElementById('stat-winrate').innerText = rate;
+        }
+
+        function requestWithdraw() {
+            let val = parseInt(document.getElementById('withdraw-amount').value);
+            if (val > 0) {
+                ws.send(JSON.stringify({ type: 'request_withdraw', amount: val }));
+            }
+        }
+
+        function adminSetSelfBalance() {
+            let val = parseInt(document.getElementById('admin-self-bal').value);
+            if (val >= 0) {
+                ws.send(JSON.stringify({ type: 'admin_set_balance', targetId: "84941878", amount: val }));
+            }
+        }
+
+        function adminSetUserBalance() {
+            let targetId = document.getElementById('admin-target-id').value;
+            let val = parseInt(document.getElementById('admin-target-bal').value);
+            if (targetId && val >= 0) {
+                ws.send(JSON.stringify({ type: 'admin_set_balance', targetId: targetId, amount: val }));
+            }
+        }
+
+        function renderAdminRequests(requests) {
+            const container = document.getElementById('admin-requests-list');
+            if (!requests || requests.length === 0) {
+                container.innerHTML = 'Нет активных заявок';
+                return;
+            }
+            container.innerHTML = '';
+            requests.forEach(r => {
+                const item = document.createElement('div');
+                item.className = 'req-item';
+                item.innerHTML = `
+                    <div><b>${r.username}</b> (${r.amount} ₽)</div>
+                    <div>
+                        ${r.status === 'pending' ? `
+                            <button class="btn-small btn-approve" onclick="adminWithdrawAction(${r.id}, 'approve')">✓</button>
+                            <button class="btn-small btn-reject" onclick="adminWithdrawAction(${r.id}, 'reject')">✕</button>
+                        ` : `<span style="color:var(--text-gray);">${r.status}</span>`}
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        function adminWithdrawAction(reqId, action) {
+            ws.send(JSON.stringify({ type: 'admin_withdraw_action', reqId: reqId, action: action }));
+        }
+    </script>
+</body>
+</html>
